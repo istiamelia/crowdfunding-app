@@ -4,13 +4,16 @@ import (
 	"campaign-service/gen/go/campaign/v1"
 	"campaign-service/helper"
 	"campaign-service/models"
+	"campaign-service/mq"
 	"campaign-service/repository"
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/labstack/gommon/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -51,6 +54,11 @@ func (s *campaignService) CreateCampaign(ctx context.Context, req *campaign.Crea
 		MinDonation:  req.MinDonation,
 	}
 
+	err := helper.ValidateCampaign(campaignPayload)
+	if err != nil{
+		return nil, err
+	}
+
 	// Insert campaign to database
 	campaignInterface, err := s.campaignRepo.CreateCampaign(campaignPayload)
 	if err != nil {
@@ -60,7 +68,7 @@ func (s *campaignService) CreateCampaign(ctx context.Context, req *campaign.Crea
 	// Cast the campaignInterface type to models.CampaignDB
 	createdCampaign, ok := campaignInterface.(models.CampaignDB)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast created campaign")
+		return nil, status.Errorf(codes.InvalidArgument,"failed to cast created campaign")
 	}
 
 	res := &campaign.CreateCampaignResponse{
@@ -81,6 +89,12 @@ func (s *campaignService) CreateCampaign(ctx context.Context, req *campaign.Crea
 			},
 		},
 	}
+	// Marshal to protobuf binary
+	data, err := proto.Marshal(res)
+	if err != nil{
+		log.Error(err)
+	}
+	mq.PublishCampaign(data,"campaign.created")
 	return res, nil
 }
 
@@ -94,7 +108,7 @@ func (s *campaignService) GetCampaignByID(ctx context.Context, req *campaign.Get
 	// Cast the campaignInterface type to models.CampaignDB
 	getCampaign, ok := campaignInterface.(models.CampaignDB)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast campaign")
+		return nil, status.Errorf(codes.InvalidArgument,"failed to cast campaign")
 	}
 
 	res := &campaign.GetCampaignByIDResponse{
@@ -115,15 +129,25 @@ func (s *campaignService) GetCampaignByID(ctx context.Context, req *campaign.Get
 			},
 		},
 	}
+
 	return res, nil
 }
 
 func (s *campaignService) DeleteCampaignByID(ctx context.Context, req *campaign.DeleteCampaignByIDRequest) (*campaign.DeleteCampaignByIDResponse, error) {
 	// Delete campaign by id
-	err := s.campaignRepo.DeleteCampaignByID(req.Id)
+	userId, err := s.campaignRepo.DeleteCampaignByID(req.Id)
 	if err != nil {
 		return nil, err
 	}
+	
+
+	msg := campaign.Notification{Id: req.Id, UserId: userId}
+	data, err := proto.Marshal(&msg)
+	if err != nil {
+    	log.Error(err)
+	}
+	mq.PublishCampaign(data, "campaign.deleted")
+
 
 	return &campaign.DeleteCampaignByIDResponse{
 		DeleteResponse: &emptypb.Empty{},
@@ -131,21 +155,36 @@ func (s *campaignService) DeleteCampaignByID(ctx context.Context, req *campaign.
 }
 
 func (s *campaignService) UpdateCampaignByID(ctx context.Context, req *campaign.UpdateCampaignByIDRequest) (*campaign.UpdateCampaignByIDResponse, error) {
+	var deadline time.Time
+	if req.Deadline != nil {
+		deadline = req.Deadline.AsTime()
+	}
+
+	// Check for user id or campaign id
+	if req.Id == "" || req.UserId == 0{
+		return nil,status.Error(codes.InvalidArgument, "Please input valid User ID or Campaign ID")
+	}
 	// Prepare a struct for campaign
 	campaignPayload := models.CampaignDB{
 		Title:        req.Title,
 		Description:  req.Description,
 		TargetAmount: req.TargetAmount,
-		Deadline:     req.Deadline.AsTime(),
+		Deadline:     deadline,
 		Status:       helper.MapStatusDB(int32(req.Status)),
 		Category:     helper.MapCategoryDB(int32(req.Category)),
 		MinDonation:  req.MinDonation,
+	}
+
+	err := helper.ValidateUpdateCampaign(campaignPayload)
+	if err != nil{
+		return nil, err
 	}
 
 	// Check if user is trying to update status manually to completed
 	if campaignPayload.Status == "completed" {
 		return nil, status.Error(codes.PermissionDenied, "You cannot manually set status to COMPLETED")
 	}
+
 
 	// Update campaign by id
 	campaignInterface, err := s.campaignRepo.UpdateCampaignByID(req.Id, req.UserId, campaignPayload)
@@ -156,7 +195,7 @@ func (s *campaignService) UpdateCampaignByID(ctx context.Context, req *campaign.
 	// Cast the campaignInterface type to models.CampaignDB
 	updatedCampaign, ok := campaignInterface.(models.CampaignDB)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast updated campaign")
+		return nil, status.Errorf(codes.InvalidArgument,"failed to cast updated campaign")
 	}
 
 	return &campaign.UpdateCampaignByIDResponse{
@@ -189,7 +228,7 @@ func (s *campaignService) GetCampaignsByUserID(ctx context.Context, req *campaig
 	// Cast the campaignInterface type to models.CampaignDB
 	getCampaign, ok := campaignInterface.([]models.CampaignDB)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast campaign")
+		return nil, status.Errorf(codes.InvalidArgument,"failed to cast campaign")
 	}
 
 	var campaignList []*campaign.Campaign

@@ -837,6 +837,58 @@ func (x *GetCampaignsByUserIDResponse) GetCampaign() []*Campaign {
 	return nil
 }
 
+type Notification struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        int32                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Notification) Reset() {
+	*x = Notification{}
+	mi := &file_campaign_v1_campaign_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Notification) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Notification) ProtoMessage() {}
+
+func (x *Notification) ProtoReflect() protoreflect.Message {
+	mi := &file_campaign_v1_campaign_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Notification.ProtoReflect.Descriptor instead.
+func (*Notification) Descriptor() ([]byte, []int) {
+	return file_campaign_v1_campaign_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *Notification) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Notification) GetUserId() int32 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
 var File_campaign_v1_campaign_proto protoreflect.FileDescriptor
 
 const file_campaign_v1_campaign_proto_rawDesc = "" +
@@ -891,7 +943,10 @@ const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"\x1bGetCampaignsByUserIDRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x05R\x06userId\"Q\n" +
 	"\x1cGetCampaignsByUserIDResponse\x121\n" +
-	"\bcampaign\x18\x01 \x03(\v2\x15.campaign.v1.CampaignR\bcampaign*\xa7\x01\n" +
+	"\bcampaign\x18\x01 \x03(\v2\x15.campaign.v1.CampaignR\bcampaign\"7\n" +
+	"\fNotification\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x05R\x06userId*\xa7\x01\n" +
 	"\x0eCampaignStatus\x12\x1f\n" +
 	"\x1bCAMPAIGN_STATUS_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16CAMPAIGN_STATUS_ACTIVE\x10\x01\x12\x1a\n" +
@@ -929,7 +984,7 @@ func file_campaign_v1_campaign_proto_rawDescGZIP() []byte {
 }
 
 var file_campaign_v1_campaign_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_campaign_v1_campaign_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_campaign_v1_campaign_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_campaign_v1_campaign_proto_goTypes = []any{
 	(CampaignStatus)(0),                  // 0: campaign.v1.CampaignStatus
 	(CampaignCategory)(0),                // 1: campaign.v1.CampaignCategory
@@ -944,21 +999,22 @@ var file_campaign_v1_campaign_proto_goTypes = []any{
 	(*UpdateCampaignByIDResponse)(nil),   // 10: campaign.v1.UpdateCampaignByIDResponse
 	(*GetCampaignsByUserIDRequest)(nil),  // 11: campaign.v1.GetCampaignsByUserIDRequest
 	(*GetCampaignsByUserIDResponse)(nil), // 12: campaign.v1.GetCampaignsByUserIDResponse
-	(*timestamppb.Timestamp)(nil),        // 13: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                // 14: google.protobuf.Empty
+	(*Notification)(nil),                 // 13: campaign.v1.Notification
+	(*timestamppb.Timestamp)(nil),        // 14: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                // 15: google.protobuf.Empty
 }
 var file_campaign_v1_campaign_proto_depIdxs = []int32{
-	13, // 0: campaign.v1.Campaign.deadline:type_name -> google.protobuf.Timestamp
+	14, // 0: campaign.v1.Campaign.deadline:type_name -> google.protobuf.Timestamp
 	0,  // 1: campaign.v1.Campaign.status:type_name -> campaign.v1.CampaignStatus
 	1,  // 2: campaign.v1.Campaign.category:type_name -> campaign.v1.CampaignCategory
-	13, // 3: campaign.v1.Campaign.created_at:type_name -> google.protobuf.Timestamp
-	13, // 4: campaign.v1.Campaign.updated_at:type_name -> google.protobuf.Timestamp
-	13, // 5: campaign.v1.CreateCampaignRequest.deadline:type_name -> google.protobuf.Timestamp
+	14, // 3: campaign.v1.Campaign.created_at:type_name -> google.protobuf.Timestamp
+	14, // 4: campaign.v1.Campaign.updated_at:type_name -> google.protobuf.Timestamp
+	14, // 5: campaign.v1.CreateCampaignRequest.deadline:type_name -> google.protobuf.Timestamp
 	1,  // 6: campaign.v1.CreateCampaignRequest.category:type_name -> campaign.v1.CampaignCategory
 	2,  // 7: campaign.v1.CreateCampaignResponse.created_campaign:type_name -> campaign.v1.Campaign
 	2,  // 8: campaign.v1.GetCampaignByIDResponse.campaign:type_name -> campaign.v1.Campaign
-	14, // 9: campaign.v1.DeleteCampaignByIDResponse.delete_response:type_name -> google.protobuf.Empty
-	13, // 10: campaign.v1.UpdateCampaignByIDRequest.deadline:type_name -> google.protobuf.Timestamp
+	15, // 9: campaign.v1.DeleteCampaignByIDResponse.delete_response:type_name -> google.protobuf.Empty
+	14, // 10: campaign.v1.UpdateCampaignByIDRequest.deadline:type_name -> google.protobuf.Timestamp
 	0,  // 11: campaign.v1.UpdateCampaignByIDRequest.status:type_name -> campaign.v1.CampaignStatus
 	1,  // 12: campaign.v1.UpdateCampaignByIDRequest.category:type_name -> campaign.v1.CampaignCategory
 	2,  // 13: campaign.v1.UpdateCampaignByIDResponse.updated_campaign:type_name -> campaign.v1.Campaign
@@ -991,7 +1047,7 @@ func file_campaign_v1_campaign_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_campaign_v1_campaign_proto_rawDesc), len(file_campaign_v1_campaign_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

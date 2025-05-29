@@ -3,6 +3,7 @@ package main
 import (
 	"campaign-service/config"
 	"campaign-service/gen/go/campaign/v1"
+	"campaign-service/mq"
 	"campaign-service/repository"
 	"campaign-service/service"
 	"fmt"
@@ -27,6 +28,8 @@ func main(){
 	config.InitDB()
 	gorm := config.DB
 
+	//  Initialize rabbitMQ
+	mq.InitRabbitMQ()
 	// Create a new grpc server
 	grpcServer := grpc.NewServer()
 

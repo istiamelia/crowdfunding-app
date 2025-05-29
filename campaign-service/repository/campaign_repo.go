@@ -13,7 +13,7 @@ import (
 type CampaignRepository interface {
 	CreateCampaign(campaign models.CampaignDB) (interface{}, error) 
 	GetCampaignByID(campaignID string) (interface{}, error) 
-	DeleteCampaignByID(id string) (error) 
+	DeleteCampaignByID(id string) (int32, error) 
 	UpdateCampaignByID(id string, userID int32,campaign models.CampaignDB) (interface{},error) 
 	GetCampaignsByUserID(userID int32) (interface{}, error) 
 }
@@ -49,11 +49,17 @@ func (r *campaignRepository) GetCampaignByID(id string) (interface{}, error) {
 	return campaign,nil
 }
 
-func (r *campaignRepository) DeleteCampaignByID(id string) (error) {
+func (r *campaignRepository) DeleteCampaignByID(id string) (int32, error) {
 	// Check if campaign exist in table
-	_, err := r.GetCampaignByID(id)
+	retreivedCampaign, err := r.GetCampaignByID(id)
 	if err != nil {
-		return err
+		return 0, err
+	}
+
+	// Cast to campaign.db
+	castedCampaign, ok := retreivedCampaign.(models.CampaignDB)
+	if !ok{
+		return 0, status.Error(codes.Internal,"Failed to cast campaign")
 	}
 
 	// Delete data and update status to "cancelled"
@@ -62,9 +68,10 @@ func (r *campaignRepository) DeleteCampaignByID(id string) (error) {
 		"deleted_at": time.Now(),
 		"status":     "cancelled", // Ensure this matches your enum string
 	}).Error; err != nil{
-		return status.Error(codes.Internal,"Error deleting campaign")
+		return 0, status.Error(codes.Internal,"Error deleting campaign")
 	}
-	return nil
+
+	return castedCampaign.UserID, nil
 }
 
 func (r *campaignRepository) UpdateCampaignByID(id string, userID int32,campaign models.CampaignDB) (interface{},error) {
@@ -84,8 +91,12 @@ func (r *campaignRepository) UpdateCampaignByID(id string, userID int32,campaign
 		return nil, status.Errorf(codes.FailedPrecondition,"campaign status is %v",castedCampaign.Status)
 	}
 	// Update data
-	if err := r.db.Model(campaign).Where("id=? AND user_id=?", id, userID).Updates(campaign).Error; err != nil{
+	result := r.db.Model(campaign).Where("id=? AND user_id=?", id, userID).Updates(campaign) 
+	if result.Error != nil{
 		return nil, status.Error(codes.Internal,"Error updating campaign")
+	}
+	if result.RowsAffected == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "No changes were made")
 	}
 
 	updatedCampaign, err := r.GetCampaignByID(id)
