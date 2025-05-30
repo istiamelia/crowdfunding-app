@@ -51,7 +51,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "5051"
+		port = "8080"
 	}
 	// Listener for grpcServer without interceptors
 	lis, err := net.Listen("tcp", ":"+port)

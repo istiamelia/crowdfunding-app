@@ -28,10 +28,10 @@
     COPY --from=builder /app/main .
     
     # Expose port
-    EXPOSE 5051
+    EXPOSE 8080
 
     # Set env default values (optional, can be overridden)
-    ENV PORT=5051
+    ENV PORT=8080
     
     CMD ["./main"]
     
