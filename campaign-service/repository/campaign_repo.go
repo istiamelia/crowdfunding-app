@@ -11,11 +11,12 @@ import (
 
 // CampaignRepository defines methods for interacting with campaign-related data in the database.
 type CampaignRepository interface {
-	CreateCampaign(campaign models.CampaignDB) (interface{}, error) 
-	GetCampaignByID(campaignID string) (interface{}, error) 
-	DeleteCampaignByID(id string) (int32, error) 
-	UpdateCampaignByID(id string, userID int32,campaign models.CampaignDB) (interface{},error) 
-	GetCampaignsByUserID(userID int32) (interface{}, error) 
+	CreateCampaign(campaign models.CampaignDB) (interface{}, error)
+	GetCampaignByID(campaignID string) (interface{}, error)
+	DeleteCampaignByID(id string) (int32, error)
+	UpdateCampaignByID(id string, userID int32, campaign models.CampaignDB) (interface{}, error)
+	GetCampaignsByUserID(userID int32) (interface{}, error)
+	UpdateCampaignToCompleted() (interface{}, error) 
 }
 
 // campaignRepository is the concrete implementation of CampaignRepository.
@@ -43,10 +44,10 @@ func (r *campaignRepository) CreateCampaign(campaign models.CampaignDB) (interfa
 func (r *campaignRepository) GetCampaignByID(id string) (interface{}, error) {
 	var campaign models.CampaignDB
 	// Get campaign by id where deleted_at != nil
-	if err := r.db.First(&campaign, "id=?",id).Error; err != nil{
-		return nil, status.Error(codes.NotFound,"Campaign not found")
+	if err := r.db.First(&campaign, "id=?", id).Error; err != nil {
+		return nil, status.Error(codes.NotFound, "Campaign not found")
 	}
-	return campaign,nil
+	return campaign, nil
 }
 
 func (r *campaignRepository) DeleteCampaignByID(id string) (int32, error) {
@@ -58,8 +59,8 @@ func (r *campaignRepository) DeleteCampaignByID(id string) (int32, error) {
 
 	// Cast to campaign.db
 	castedCampaign, ok := retreivedCampaign.(models.CampaignDB)
-	if !ok{
-		return 0, status.Error(codes.Internal,"Failed to cast campaign")
+	if !ok {
+		return 0, status.Error(codes.Internal, "Failed to cast campaign")
 	}
 
 	// Delete data and update status to "cancelled"
@@ -67,33 +68,33 @@ func (r *campaignRepository) DeleteCampaignByID(id string) (int32, error) {
 	if err := r.db.Model(&campaign).Where("id=?", id).Updates(map[string]interface{}{
 		"deleted_at": time.Now(),
 		"status":     "cancelled", // Ensure this matches your enum string
-	}).Error; err != nil{
-		return 0, status.Error(codes.Internal,"Error deleting campaign")
+	}).Error; err != nil {
+		return 0, status.Error(codes.Internal, "Error deleting campaign")
 	}
 
 	return castedCampaign.UserID, nil
 }
 
-func (r *campaignRepository) UpdateCampaignByID(id string, userID int32,campaign models.CampaignDB) (interface{},error) {
+func (r *campaignRepository) UpdateCampaignByID(id string, userID int32, campaign models.CampaignDB) (interface{}, error) {
 	// Check if campaign exist in table
 	retreivedCampaign, err := r.GetCampaignByID(id)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	// Cast to models.campaignDB
 	castedCampaign, ok := retreivedCampaign.(models.CampaignDB)
-	if !ok{
-		return nil, status.Error(codes.Internal,"Failed to cast campaign")
+	if !ok {
+		return nil, status.Error(codes.Internal, "Failed to cast campaign")
 	}
 
 	// check if current status cancelled or completed
-	if castedCampaign.Status == "cancelled" || castedCampaign.Status == "completed"{
-		return nil, status.Errorf(codes.FailedPrecondition,"campaign status is %v",castedCampaign.Status)
+	if castedCampaign.Status == "cancelled" || castedCampaign.Status == "completed" {
+		return nil, status.Errorf(codes.FailedPrecondition, "campaign status is %v", castedCampaign.Status)
 	}
 	// Update data
-	result := r.db.Model(campaign).Where("id=? AND user_id=?", id, userID).Updates(campaign) 
-	if result.Error != nil{
-		return nil, status.Error(codes.Internal,"Error updating campaign")
+	result := r.db.Model(campaign).Where("id=? AND user_id=?", id, userID).Updates(campaign)
+	if result.Error != nil {
+		return nil, status.Error(codes.Internal, "Error updating campaign")
 	}
 	if result.RowsAffected == 0 {
 		return nil, status.Error(codes.FailedPrecondition, "No changes were made")
@@ -101,7 +102,7 @@ func (r *campaignRepository) UpdateCampaignByID(id string, userID int32,campaign
 
 	updatedCampaign, err := r.GetCampaignByID(id)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	return updatedCampaign, nil
 }
@@ -109,12 +110,44 @@ func (r *campaignRepository) UpdateCampaignByID(id string, userID int32,campaign
 func (r *campaignRepository) GetCampaignsByUserID(userID int32) (interface{}, error) {
 	var campaign []models.CampaignDB
 	// Get campaign by id where deleted_at != nil
-	if err := r.db.Where("user_id=?",userID).Find(&campaign).Error; err != nil{
-		return nil, status.Error(codes.NotFound,"Campaign not found")
+	if err := r.db.Where("user_id=?", userID).Find(&campaign).Error; err != nil {
+		return nil, status.Error(codes.NotFound, "Campaign not found")
 	}
-	return campaign,nil
+	return campaign, nil
 }
 
+func (r *campaignRepository) UpdateCampaignToCompleted() (interface{}, error) {
+	var campaigns []models.CampaignDB
+	today := time.Now().Format("2006-01-02")
 
+	// 1. Find campaigns with deadline today
+	err := r.db.Where("DATE(deadline) = ?", today).Find(&campaigns).Error
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Error fetching campaigns")
+	}
 
+	if len(campaigns) == 0 {
+		return nil, status.Error(codes.NotFound, "No campaigns with deadline today")
+	}
 
+	// 2. Update campaigns (example: update status)
+	updates := map[string]interface{}{
+		"status": "completed",
+	}
+
+	result := r.db.Model(&campaigns).
+		Where("DATE(deadline) = ? AND status =?", today, "active").
+		Updates(updates)
+
+	if result.Error != nil {
+		return nil, status.Error(codes.Internal, "Error updating campaigns")
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, status.Error(codes.NotFound, "No campaigns updated")
+	}
+
+	// 3. Return updated campaigns
+	return campaigns, nil
+
+}

@@ -3,9 +3,11 @@ package main
 import (
 	"campaign-service/config"
 	"campaign-service/gen/go/campaign/v1"
+	"campaign-service/internal/cron"
 	"campaign-service/mq"
 	"campaign-service/repository"
 	"campaign-service/service"
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -15,7 +17,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func main(){
+func main() {
 	// Load .env only if running locally
 	if os.Getenv("ENV") != "production" {
 		err := godotenv.Load(".env")
@@ -40,7 +42,12 @@ func main(){
 	campaignService := service.NewCampaignService(campaignRepo)
 
 	// Register server with grpc
-	campaign.RegisterCampaignServiceServer(grpcServer,campaignService)
+	campaign.RegisterCampaignServiceServer(grpcServer, campaignService)
+
+	go cron.InitScheduleCron(func() {
+		log.Println("Running scheduled campaign completion check...")
+		campaignService.MarkCampaignCompleted(context.Background())
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -51,7 +58,7 @@ func main(){
 	if err != nil {
 		log.Fatalf("failed to listen on PORT: %v", err)
 	}
-	
+
 	log.Printf("Starting gRPC server on :%s", port)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)

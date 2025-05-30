@@ -22,9 +22,10 @@ import (
 type CampaignService interface {
 	CreateCampaign(ctx context.Context, req *campaign.CreateCampaignRequest) (*campaign.CreateCampaignResponse, error)
 	GetCampaignByID(ctx context.Context, req *campaign.GetCampaignByIDRequest) (*campaign.GetCampaignByIDResponse, error)
-	DeleteCampaignByID(ctx context.Context, req *campaign.DeleteCampaignByIDRequest) (*campaign.DeleteCampaignByIDResponse, error) 
-	UpdateCampaignByID(ctx context.Context, req *campaign.UpdateCampaignByIDRequest) (*campaign.UpdateCampaignByIDResponse, error) 
-	GetCampaignsByUserID(ctx context.Context, req *campaign.GetCampaignsByUserIDRequest) (*campaign.GetCampaignsByUserIDResponse, error) 
+	DeleteCampaignByID(ctx context.Context, req *campaign.DeleteCampaignByIDRequest) (*campaign.DeleteCampaignByIDResponse, error)
+	UpdateCampaignByID(ctx context.Context, req *campaign.UpdateCampaignByIDRequest) (*campaign.UpdateCampaignByIDResponse, error)
+	GetCampaignsByUserID(ctx context.Context, req *campaign.GetCampaignsByUserIDRequest) (*campaign.GetCampaignsByUserIDResponse, error)
+	MarkCampaignCompleted(ctx context.Context) 
 }
 
 // campaignService is the struct implementation of CampaignService
@@ -55,7 +56,7 @@ func (s *campaignService) CreateCampaign(ctx context.Context, req *campaign.Crea
 	}
 
 	err := helper.ValidateCampaign(campaignPayload)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 
@@ -68,7 +69,7 @@ func (s *campaignService) CreateCampaign(ctx context.Context, req *campaign.Crea
 	// Cast the campaignInterface type to models.CampaignDB
 	createdCampaign, ok := campaignInterface.(models.CampaignDB)
 	if !ok {
-		return nil, status.Errorf(codes.InvalidArgument,"failed to cast created campaign")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to cast created campaign")
 	}
 
 	res := &campaign.CreateCampaignResponse{
@@ -91,10 +92,11 @@ func (s *campaignService) CreateCampaign(ctx context.Context, req *campaign.Crea
 	}
 	// Marshal to protobuf binary
 	data, err := proto.Marshal(res)
-	if err != nil{
+	if err != nil {
 		log.Error(err)
 	}
-	mq.PublishCampaign(data,"campaign.created")
+	mq.PublishCampaign(data, "campaign.created")
+
 	return res, nil
 }
 
@@ -108,7 +110,7 @@ func (s *campaignService) GetCampaignByID(ctx context.Context, req *campaign.Get
 	// Cast the campaignInterface type to models.CampaignDB
 	getCampaign, ok := campaignInterface.(models.CampaignDB)
 	if !ok {
-		return nil, status.Errorf(codes.InvalidArgument,"failed to cast campaign")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to cast campaign")
 	}
 
 	res := &campaign.GetCampaignByIDResponse{
@@ -139,15 +141,13 @@ func (s *campaignService) DeleteCampaignByID(ctx context.Context, req *campaign.
 	if err != nil {
 		return nil, err
 	}
-	
 
 	msg := campaign.Notification{Id: req.Id, UserId: userId}
 	data, err := proto.Marshal(&msg)
 	if err != nil {
-    	log.Error(err)
+		log.Error(err)
 	}
 	mq.PublishCampaign(data, "campaign.deleted")
-
 
 	return &campaign.DeleteCampaignByIDResponse{
 		DeleteResponse: &emptypb.Empty{},
@@ -161,8 +161,8 @@ func (s *campaignService) UpdateCampaignByID(ctx context.Context, req *campaign.
 	}
 
 	// Check for user id or campaign id
-	if req.Id == "" || req.UserId == 0{
-		return nil,status.Error(codes.InvalidArgument, "Please input valid User ID or Campaign ID")
+	if req.Id == "" || req.UserId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Please input valid User ID or Campaign ID")
 	}
 	// Prepare a struct for campaign
 	campaignPayload := models.CampaignDB{
@@ -176,7 +176,7 @@ func (s *campaignService) UpdateCampaignByID(ctx context.Context, req *campaign.
 	}
 
 	err := helper.ValidateUpdateCampaign(campaignPayload)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 
@@ -184,7 +184,6 @@ func (s *campaignService) UpdateCampaignByID(ctx context.Context, req *campaign.
 	if campaignPayload.Status == "completed" {
 		return nil, status.Error(codes.PermissionDenied, "You cannot manually set status to COMPLETED")
 	}
-
 
 	// Update campaign by id
 	campaignInterface, err := s.campaignRepo.UpdateCampaignByID(req.Id, req.UserId, campaignPayload)
@@ -195,7 +194,7 @@ func (s *campaignService) UpdateCampaignByID(ctx context.Context, req *campaign.
 	// Cast the campaignInterface type to models.CampaignDB
 	updatedCampaign, ok := campaignInterface.(models.CampaignDB)
 	if !ok {
-		return nil, status.Errorf(codes.InvalidArgument,"failed to cast updated campaign")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to cast updated campaign")
 	}
 
 	return &campaign.UpdateCampaignByIDResponse{
@@ -228,30 +227,47 @@ func (s *campaignService) GetCampaignsByUserID(ctx context.Context, req *campaig
 	// Cast the campaignInterface type to models.CampaignDB
 	getCampaign, ok := campaignInterface.([]models.CampaignDB)
 	if !ok {
-		return nil, status.Errorf(codes.InvalidArgument,"failed to cast campaign")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to cast campaign")
 	}
 
 	var campaignList []*campaign.Campaign
 	for _, val := range getCampaign {
-			campaignList = append(campaignList,&campaign.Campaign{
-					Id:              val.ID,
-					UserId:          val.UserID,
-					Title:           val.Title,
-					Description:     val.Description,
-					TargetAmount:    val.TargetAmount,
-					CollectedAmount: val.CollectedAmount,
-					Deadline:        timestamppb.New(val.Deadline),
-					Status:          campaign.CampaignStatus(helper.MapStatusProto(val.Status)),
-					Category:        campaign.CampaignCategory(helper.MapCateogryProto(val.Category)),
-					MinDonation:     val.MinDonation,
-					CreatedAt:       timestamppb.New(val.CreatedAt),
-					UpdatedAt:       timestamppb.New(val.UpdatedAt),
-				
-			},
+		campaignList = append(campaignList, &campaign.Campaign{
+			Id:              val.ID,
+			UserId:          val.UserID,
+			Title:           val.Title,
+			Description:     val.Description,
+			TargetAmount:    val.TargetAmount,
+			CollectedAmount: val.CollectedAmount,
+			Deadline:        timestamppb.New(val.Deadline),
+			Status:          campaign.CampaignStatus(helper.MapStatusProto(val.Status)),
+			Category:        campaign.CampaignCategory(helper.MapCateogryProto(val.Category)),
+			MinDonation:     val.MinDonation,
+			CreatedAt:       timestamppb.New(val.CreatedAt),
+			UpdatedAt:       timestamppb.New(val.UpdatedAt),
+		},
 		)
 	}
 
 	return &campaign.GetCampaignsByUserIDResponse{
 		Campaign: campaignList,
-	},nil
+	}, nil
+}
+
+func (s *campaignService) MarkCampaignCompleted(ctx context.Context) {
+	campaignInterface, err := s.campaignRepo.UpdateCampaignToCompleted()
+	if err != nil {
+		log.Printf("%v",err)
+	}
+
+	// Cast the campaignInterface type to models.CampaignDB
+	updatedCampaign, ok := campaignInterface.([]models.CampaignDB)
+	if len(updatedCampaign)!=0 && !ok {
+		log.Printf("failed to cast campaign")
+	}
+
+
+	for _, val := range updatedCampaign {
+		log.Printf("Campaign ID: %s is updated, current status: %s", val.ID, val.Status)
+	}
 }
